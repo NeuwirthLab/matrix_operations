@@ -14,7 +14,7 @@ if(WITH_PAPI)
 	find_package(PAPI REQUIRED)
 endif()
 
-add_executable(eigen3_ops "matrix_ops.cpp")
+add_executable(eigen3_ops "eigen3_ops.cpp")
 target_include_directories(eigen3_ops PRIVATE "../include" "${LIKWID_INCLUDE_DIRS}" "${PAPI_INCLUDE_DIR}")
 target_compile_features(eigen3_ops PRIVATE "cxx_std_20")
 target_compile_definitions(eigen3_ops PRIVATE "$<$<BOOL:${WITH_LIKWID}>:LIKWID_PERF>" "$<$<BOOL:${WITH_PAPI}>:PAPI_PERF>")
