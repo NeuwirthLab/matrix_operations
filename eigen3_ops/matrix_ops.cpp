@@ -1,4 +1,16 @@
-#include "matrix_ops.hpp"
+#include "profiler.hpp"
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
+#include <unsupported/Eigen/SparseExtra>
+#include <chrono>
+#include <cstdint>
+#include <exception>
+#include <filesystem>
+#include <iostream>
+#include <string>
+#include <vector>
+
+#include <getopt.h>
 
 namespace fs = std::filesystem;
 using MatrixContainer = std::vector<std::tuple<fs::path, std::uintmax_t>>;
@@ -8,6 +20,53 @@ using Duration = std::chrono::duration<double>;
 using ValueType = float;
 using DenseMatrix = Eigen::Matrix<ValueType, Eigen::Dynamic, Eigen::Dynamic>;
 using SparseMatrix = Eigen::SparseMatrix<ValueType>;
+
+namespace matrix_ops {
+typedef struct {
+	double load_time;
+	double store_time;
+	double compute_time;
+	std::uintmax_t data_size;
+	std::uintmax_t fp_ops;
+	double read_bw;
+	double write_bw;
+	std::filesystem::path path;
+} result_t;
+
+class ResultCollector {
+	std::vector<result_t> _data;
+
+   public:
+	ResultCollector() = delete;
+	ResultCollector(std::size_t _n) {
+		_data.reserve(_n);
+	}
+	void insert_result(const result_t _r) {
+		_data.push_back(_r);
+	}
+	auto get_size(void) const {
+		return _data.size();
+	}
+	void print_csv(const std::filesystem::path _path,
+	               const std::string fname) const {
+		std::fstream s{_path.string() + "/" + fname, s.out};
+
+		if (!s.is_open()) {
+			std::cerr << "Failed to open file\n";
+			std::terminate();
+		}
+		// Header
+		s << "data_path,data_size,load_time,store_time,compute_time,fp_"
+		     "ops,read_bw,write_bw\n";
+		for (auto const& d : _data) {
+			s << d.path.string() << "," << d.data_size << "," << d.load_time
+			  << "," << d.store_time << "," << d.compute_time << "," << d.fp_ops << "," << d.read_bw << "," << d.write_bw
+			  << std::endl;
+		}
+	}
+};
+
+} // namespace matrix_ops
 
 void dense_operations(const fs::path in_file,
                       const fs::path out_path,
@@ -25,9 +84,9 @@ void dense_operations(const fs::path in_file,
 	Duration d = Clock::now() - t0;
 	result.load_time = d.count();
 	t0 = Clock::now();
-	LIKWID_MARKER_START("dense");
+	PROFILER_START("dense");
 	DenseMatrix b = a.inverse();
-	LIKWID_MARKER_STOP("dense");
+	PROFILER_STOP("dense");
 	d = Clock::now() - t0;
 
 	std::cout << a << std::endl;
@@ -70,9 +129,9 @@ void sparse_operations(const fs::path in_file,
 	result.load_time = d.count();
 
 	t0 = Clock::now();
-	LIKWID_MARKER_START("sparse");
+	PROFILER_START("sparse");
 	SparseMatrix b = (a * a);
-	LIKWID_MARKER_STOP("sparse");
+	PROFILER_STOP("sparse");
 	d = Clock::now() - t0;
 
 	result.compute_time = d.count();
@@ -151,7 +210,7 @@ int main(int argc, char* argv[]) {
 
 	matrix_ops::ResultCollector dense_results(dense_matrices.size());
 	matrix_ops::ResultCollector sparse_results(sparse_matrices.size());
-	LIKWID_MARKER_INIT;
+	PROFILER_INIT;
 	for (const auto& p : dense_matrices) {
 		dense_operations(std::get<0>(p), output_dir, dense_results);
 	}
@@ -159,7 +218,7 @@ int main(int argc, char* argv[]) {
 	for (const auto& p : sparse_matrices) {
 		sparse_operations(std::get<0>(p), output_dir, sparse_results);
 	}
-	LIKWID_MARKER_CLOSE;
+	PROFILER_CLOSE;
 	dense_results.print_csv(result_dir, "dense.csv");
 	sparse_results.print_csv(result_dir, "sparse.csv");
 	return 0;
