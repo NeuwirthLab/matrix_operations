@@ -11,6 +11,8 @@
 #define PROFILER_CLOSE LIKWID_MARKER_CLOSE
 #elif PAPI_PERF
 #include "papi.h"
+#define PROFILER_INIT
+#define PROFILER_CLOSE
 #define PROFILER_START(tag) PAPI_hl_region_begin(tag)
 #define PROFILER_STOP(tag) PAPI_hl_region_end(tag)
 #else
