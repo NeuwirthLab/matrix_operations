@@ -7,11 +7,14 @@
 #include <limits>
 #include <random>
 #include <thread>
+#include <chrono>
 #include "profiler.hpp"
 #include "taco.h"
 
 namespace fs = std::filesystem;
 using ValueType = double;
+using Clock = std::chrono::high_resolution_clock;
+using Duration = std::chrono::duration<double>;
 
 int main(int argc, char* argv[]) {
 
@@ -66,7 +69,13 @@ int main(int argc, char* argv[]) {
 	/*     std::numeric_limits<ValueType>::max()); */
 	std::uniform_real_distribution<ValueType> unif(0, 1000);
 
+	auto t0 = Clock::now();
 	taco::Tensor<ValueType> A = taco::read(input_file, dm);
+	Duration d = Clock::now() - t0;
+
+	std::cout << "Read time: " << d.count() << " [s]\n";
+	std::cout << "Read bw: " << fs::file_size(input_file) / d.count() << " [b/s]\n";
+	std::cout << "Read bw: " << fs::file_size(input_file) / d.count() * 1e-6 << " [Mb/s]\n";
 
 	taco::Tensor<ValueType> x({A.getDimension(1)}, dv);
 	for (int i = 0; i < x.getDimension(0); ++i) {
@@ -91,13 +100,20 @@ int main(int argc, char* argv[]) {
 
 	y.compile();
 	y.assemble();
-
+	
 	PROFILER_INIT;
 	PROFILER_START("DenseMV");
 	y.compute();
 	PROFILER_STOP("DenseMV");
 	PROFILER_CLOSE;
 
+	t0 = Clock::now();
 	taco::write(output_file, y);
+	d = Clock::now() - t0;
+
+	std::cout << "Write time: " << d.count() << " [s]\n";
+	std::cout << "Write bw: " << fs::file_size(output_file) / d.count() << " [b/s]\n";
+	std::cout << "Write bw: " << fs::file_size(output_file) / d.count() * 1e-6 << " [Mb/s]\n";
+
 	return 0;
 }
